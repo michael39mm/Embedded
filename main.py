@@ -4,14 +4,21 @@ import cv2
 import numpy as np
 import config
 from game import ChessEngine, detect_move, expected_squares
+from pico_serial import PicoChessEngine
 from vision import capture_clean_frame, draw_grid, open_camera, score_squares, warp_board
+
+
+def open_engine() -> PicoChessEngine | ChessEngine:
+    """Use the Pico over USB Serial, or fall back to the local .exe engine."""
+    if config.USE_PICO_SERIAL:
+        return PicoChessEngine()
+    return ChessEngine()
 
 
 def send_to_robot(move: chess.Move) -> None:
     """
-    Placeholder for sending the move to your RP2040 over USB Serial.
-    Later, replace this print with:
-        ser.write(f"MOVE {move.uci()}\\n".encode())
+    Placeholder for sending the move to your gantry motors later.
+    Right now, you physically move Black's piece and press SPACE so the camera verifies it.
     """
     print(f"\n[ROBOT COMMAND] MOVE {move.uci()}")
     print("-> Move the black piece on the board (simulating the robot), then press SPACE to verify.")
@@ -56,7 +63,8 @@ def main() -> None:
     cv2.resizeWindow(win_name, 720, 720)
     cv2.moveWindow(win_name, 950, 50)
 
-    print("\n=== AI Chessboard Live Mode ===")
+    mode_label = f"PICO USB ({config.PICO_PORT})" if config.USE_PICO_SERIAL else "LOCAL EXE"
+    print(f"\n=== AI Chessboard Live Mode [{mode_label}] ===")
     print("Controls (click the OpenCV window first):")
     print("  [SPACE] Capture baseline / confirm move / verify robot move")
     print("  [M]     Type an on-screen move manually (e.g., e2e4)")
@@ -65,7 +73,7 @@ def main() -> None:
     print("  [Q]     Quit\n")
 
     try:
-        with ChessEngine() as engine:
+        with open_engine() as engine:
             while not board.is_game_over():
                 ok, frame = cap.read()
                 if not ok:
@@ -199,8 +207,8 @@ def main() -> None:
 
             if board.is_game_over():
                 print(f"\n=== GAME OVER: {board.result()} ({board.outcome().termination.name}) ===")
-    except (KeyboardInterrupt, chess.engine.EngineTerminatedError):
-        print("\n[INFO] Exiting cleanly.")
+    except (KeyboardInterrupt, chess.engine.EngineTerminatedError, RuntimeError) as exc:
+        print(f"\n[INFO] Stopped: {exc}" if str(exc) else "\n[INFO] Exiting cleanly.")
     finally:
         cap.release()
         cv2.destroyAllWindows()
