@@ -20,8 +20,8 @@
 /* --- Calibration & Travel Limits --- */
 #define STEPS_PER_MM      40.0f
 #define BACKOFF_STEPS     120
-#define HOME_DELAY_US     30
-#define MOVE_DELAY_US     30
+#define HOME_DELAY_US     200
+#define MOVE_DELAY_US     200
 #define MAX_TRAVEL_STEPS  14000
 
 #define TOTAL_WIDTH_X_MM  285.58f

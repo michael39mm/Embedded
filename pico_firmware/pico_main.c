@@ -3,6 +3,7 @@
 #include <string.h>
 #include "pico/stdlib.h"
 #include "chess_engine.h"
+#include "magnet.h"
 #include "motor.h"
 
 /* Placed in static SRAM so they never overflow the RP2040's 2 KB call stack */
@@ -102,6 +103,7 @@ int main(void) {
     setvbuf(stdout, NULL, _IONBF, 0);
 
     chess_init(&g_state);
+    magnet_init();
     motor_init();
 
     while (true) {
@@ -118,6 +120,7 @@ int main(void) {
             printf("readyok\n");
         } else if (strcmp(g_line, "ucinewgame") == 0) {
             chess_init(&g_state);
+            magnet_off();
             motor_arm();
             motor_home_all();
         } else if (strncmp(g_line, "position", 8) == 0) {
@@ -164,6 +167,7 @@ int main(void) {
             }
         } else if (strcmp(g_line, "quit") == 0) {
             chess_init(&g_state);
+            magnet_off();
             motor_move_to_mm(0.0f, 0.0f, MOVE_DELAY_US);
             motor_disarm();
         }

@@ -1,4 +1,5 @@
 #include "motor.h"
+#include "magnet.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include "pico/stdlib.h"
@@ -94,11 +95,13 @@ void motor_arm(void) {
 }
 
 void motor_disarm(void) {
+    magnet_off();
     gpio_put(PIN_EN_X, 1);
     gpio_put(PIN_EN_Y, 1);
 }
 
 bool motor_home_all(void) {
+    magnet_off();
     g_is_homed = false;
     if (!home_axis("X-AXIS", PIN_STEP_X, PIN_DIR_X, PIN_LIMIT_X, DIR_HOME_X)) {
         return false;
@@ -189,15 +192,21 @@ static void move_piece_path(uint8_t from_sq, uint8_t to_sq) {
     motor_square_to_mm(from_sq, &x1, &y1);
     motor_square_to_mm(to_sq, &x2, &y2);
 
-    /* Travel to pickup square */
+    /* 1. Travel empty to the piece and stop */
+    magnet_off();
     motor_move_to_mm(x1, y1, MOVE_DELAY_US);
-    sleep_ms(150);
+    sleep_ms(MAGNET_SETTLE_MS);
+
+    /* 2. Turn magnet ON to grab the piece */
+    magnet_on();
+    sleep_ms(MAGNET_SETTLE_MS);
 
     int df = (to_sq & 7) - (from_sq & 7);
     int dr = (to_sq >> 3) - (from_sq >> 3);
 
-    /* Knight jump: route along half-square grid lines to avoid bumping neighbors */
+    /* 3. Carry piece to destination while magnet stays ON */
     if ((abs(df) == 1 && abs(dr) == 2) || (abs(df) == 2 && abs(dr) == 1)) {
+        /* Knight jump: route along half-square grid lines to avoid bumping neighbors */
         float half = SQUARE_SIZE_MM * 0.5f;
         float mid_x = x1 + (df > 0 ? half : -half);
         float mid_y = y1 + (dr > 0 ? half : -half);
@@ -214,7 +223,10 @@ static void move_piece_path(uint8_t from_sq, uint8_t to_sq) {
         motor_move_to_mm(x2, y2, MOVE_DELAY_US);
     }
 
-    sleep_ms(150);
+    /* 4. Stop at destination and turn magnet OFF */
+    sleep_ms(MAGNET_SETTLE_MS);
+    magnet_off();
+    sleep_ms(MAGNET_SETTLE_MS);
 }
 
 void motor_execute_move(const ChessState *state_before, ChessMove move) {
@@ -233,10 +245,19 @@ void motor_execute_move(const ChessState *state_before, ChessMove move) {
     if (cap_sq >= 0 && cap_sq < 64) {
         float cx, cy;
         motor_square_to_mm((uint8_t)cap_sq, &cx, &cy);
+
+        magnet_off();
         motor_move_to_mm(cx, cy, MOVE_DELAY_US);
-        sleep_ms(150);
+        sleep_ms(MAGNET_SETTLE_MS);
+
+        magnet_on();
+        sleep_ms(MAGNET_SETTLE_MS);
+
         motor_move_to_mm(GRAVEYARD_X_MM, GRAVEYARD_Y_MM, MOVE_DELAY_US);
-        sleep_ms(150);
+        sleep_ms(MAGNET_SETTLE_MS);
+
+        magnet_off();
+        sleep_ms(MAGNET_SETTLE_MS);
     }
 
     /* 2. Move the active piece */

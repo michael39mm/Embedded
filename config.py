@@ -3,7 +3,7 @@ from pathlib import Path
 # Engine mode: True = C chess engine on Raspberry Pi Pico over USB Serial
 #              False = local Windows binary (bin/pico_engine.exe)
 USE_PICO_SERIAL = True
-PICO_PORT = "COM4"        # Check Windows Device Manager -> Ports (COM & LPT)
+PICO_PORT = "COM3"        # Check Windows Device Manager -> Ports (COM & LPT)
 PICO_BAUD = 115200
 PICO_TIMEOUT_SEC = 10.0   # Max seconds to wait for one reply line from the Pico
 PICO_SEARCH_DEPTH = 3     # 1 (fast/easy) to 4 (strongest, matches CHESS_MAX_DEPTH)
@@ -13,7 +13,7 @@ STOCKFISH_PATH = Path("bin/pico_engine.exe")
 ENGINE_TIME_SEC = 0.5
 
 # Camera settings
-CAMERA_INDEX = 1          # 0 = default webcam; try 1 if you have an external USB cam
+CAMERA_INDEX = 0          # 0 = default webcam; try 1 if you have an external USB cam
 FRAME_WIDTH = 1920
 FRAME_HEIGHT = 1080
 LOCK_EXPOSURE = False     # Keep False on DirectShow webcams that turn dark/grainy when locked
