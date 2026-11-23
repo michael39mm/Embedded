@@ -48,3 +48,7 @@ pico_enable_stdio_uart(pico_chess_engine 0)
 
 # Generate pico_chess_engine.uf2 to drag onto the Pico
 pico_add_extra_outputs(pico_chess_engine)
+
+add_executable(magnet_solo magnet_solo.c)
+target_link_libraries(magnet_solo pico_stdlib)
+pico_add_extra_outputs(magnet_solo)
