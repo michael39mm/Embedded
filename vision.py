@@ -42,6 +42,32 @@ def open_camera(index: int = config.CAMERA_INDEX) -> cv2.VideoCapture:
     return cap
 
 
+def capture_clean_frame(
+    cap: cv2.VideoCapture,
+    num_frames: int = config.CAPTURE_FRAMES,
+) -> np.ndarray | None:
+    """Flush stale frames and average several fresh frames to reduce webcam grain and flicker."""
+    for _ in range(2):
+        cap.grab()
+
+    acc: np.ndarray | None = None
+    count = 0
+    for _ in range(num_frames):
+        ok, frame = cap.read()
+        if not ok:
+            continue
+        if acc is None:
+            acc = frame.astype(np.float32)
+        else:
+            acc += frame
+        count += 1
+
+    if acc is None or count == 0:
+        return None
+
+    return (acc / count).astype(np.uint8)
+
+
 def warp_board(image: np.ndarray, corners: np.ndarray) -> np.ndarray:
     """
     Stretch the 4 outer board corners into a flat 800x800 top-down image.
@@ -59,14 +85,16 @@ def warp_board(image: np.ndarray, corners: np.ndarray) -> np.ndarray:
 
 def score_squares(before_800: np.ndarray, after_800: np.ndarray) -> dict[str, float]:
     """Compare two aligned 800x800 board images and return a change score for every square."""
-    before_gray = cv2.cvtColor(before_800, cv2.COLOR_BGR2GRAY)
-    after_gray = cv2.cvtColor(after_800, cv2.COLOR_BGR2GRAY)
-
     # Light blur smooths out single-pixel camera grain
-    before_gray = cv2.GaussianBlur(before_gray, (5, 5), 0)
-    after_gray = cv2.GaussianBlur(after_gray, (5, 5), 0)
+    before_f = cv2.GaussianBlur(before_800, (5, 5), 0).astype(np.float32)
+    after_f = cv2.GaussianBlur(after_800, (5, 5), 0).astype(np.float32)
 
-    diff = cv2.absdiff(before_gray, after_gray)
+    # Cancel whole-board brightness/color drift caused by webcam auto-exposure
+    drift = np.median(after_f - before_f, axis=(0, 1))
+    after_aligned = after_f - drift
+
+    # Use strongest BGR channel change per pixel so color contrast isn't lost
+    diff = np.max(np.abs(before_f - after_aligned), axis=2)
 
     scores: dict[str, float] = {}
     sq = config.SQUARE_SIZE
@@ -79,7 +107,7 @@ def score_squares(before_800: np.ndarray, after_800: np.ndarray) -> dict[str, fl
             c0, c1 = col * sq + m, (col + 1) * sq - m
             inner_patch = diff[r0:r1, c0:c1]
             square_name = f"{FILES[col]}{rank}"
-            scores[square_name] = float(np.mean(inner_patch))
+            scores[square_name] = float(np.percentile(inner_patch, config.SCORE_PERCENTILE))
 
     return scores
 
@@ -88,8 +116,9 @@ def draw_grid(
     warped: np.ndarray,
     highlight_squares: set[str] | None = None,
     banner_text: str = "",
+    status_text: str = "",
 ) -> np.ndarray:
-    """Draw an 8x8 green alignment grid, square labels, and optional highlighted squares."""
+    """Draw an 8x8 green alignment grid, square labels, optional highlights, and status bars."""
     out = warped.copy()
     sq = config.SQUARE_SIZE
     highlight_squares = highlight_squares or set()
@@ -124,8 +153,22 @@ def draw_grid(
             banner_text,
             (10, 25),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.65,
+            0.6,
             (255, 255, 255),
+            2,
+            cv2.LINE_AA,
+        )
+
+    if status_text:
+        y_top = config.BOARD_SIZE - 36
+        cv2.rectangle(out, (0, y_top), (config.BOARD_SIZE, config.BOARD_SIZE), (20, 20, 20), -1)
+        cv2.putText(
+            out,
+            status_text,
+            (10, config.BOARD_SIZE - 11),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.55,
+            (0, 255, 255),
             2,
             cv2.LINE_AA,
         )

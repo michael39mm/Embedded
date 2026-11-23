@@ -21,6 +21,7 @@ def main() -> None:
     clicked_points: list[tuple[int, int]] = []
     cap = None
     static_img = None
+    preview_open = False
 
     if args.image:
         static_img = cv2.imread(args.image)
@@ -37,7 +38,7 @@ def main() -> None:
     win_name = "Calibrate Board (Click 4 Corners)"
     preview_name = "Warped Preview"
     cv2.namedWindow(win_name, cv2.WINDOW_NORMAL)
-    cv2.resizeWindow(win_name, 1280, 720)
+    cv2.resizeWindow(win_name, 960, 540)
     cv2.setMouseCallback(win_name, on_mouse)
 
     print("Click the 4 outer corners in order: a8 -> h8 -> h1 -> a1.")
@@ -69,6 +70,11 @@ def main() -> None:
                 prompt = f"Click {CORNER_LABELS[len(clicked_points)]}"
             else:
                 prompt = "Check Warped Preview -> Press [S] to Save or [R] to Reset"
+                if not preview_open:
+                    cv2.namedWindow(preview_name, cv2.WINDOW_NORMAL)
+                    cv2.resizeWindow(preview_name, 600, 600)
+                    cv2.moveWindow(preview_name, 950, 50)
+                    preview_open = True
                 warped = warp_board(frame, np.array(clicked_points, dtype=np.float32))
                 cv2.imshow(preview_name, draw_grid(warped))
 
@@ -79,8 +85,9 @@ def main() -> None:
             key = cv2.waitKey(30) & 0xFF
             if key in (ord("r"), ord("R")):
                 clicked_points.clear()
-                if cv2.getWindowProperty(preview_name, cv2.WND_PROP_VISIBLE) >= 1:
+                if preview_open and cv2.getWindowProperty(preview_name, cv2.WND_PROP_VISIBLE) >= 1:
                     cv2.destroyWindow(preview_name)
+                preview_open = False
                 print("Reset corners.")
             elif key in (ord("s"), ord("S")) and len(clicked_points) == 4:
                 np.save(config.CORNERS_FILE, np.array(clicked_points, dtype=np.float32))
